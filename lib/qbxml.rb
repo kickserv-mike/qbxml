@@ -1,4 +1,4 @@
-require "qbxml/version"
+require 'qbxml/version'
 
 require 'nokogiri'
 require 'active_support/builder'

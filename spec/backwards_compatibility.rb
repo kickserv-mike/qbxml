@@ -3,13 +3,12 @@ require 'quickbooks'
 
 describe Qbxml do
   context 'backwards compatibility with the quickbooks_api gem' do
-
     let(:qb_old) { Quickbooks::API[:qb] }
     let(:qb_new) { Qbxml.new(:qb) }
 
     it 'should produce the same results when parsing qbxml/hash data' do
       (requests + responses).each do |data|
-        old_parse = qb_old.qbxml_to_hash(data, true) 
+        old_parse = qb_old.qbxml_to_hash(data, true)
 
         new_parse1 = qb_new.from_qbxml(data)
         new_parse1.should == { 'qbxml' => old_parse }
@@ -21,6 +20,5 @@ describe Qbxml do
         new_parse2.should == { 'qbxml' => old_parse }
       end
     end
-
   end
 end

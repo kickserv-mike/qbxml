@@ -11,24 +11,23 @@ class Qbxml::Hash < ::Hash
   ATTR_ROOT    = 'xml_attributes'.freeze
   IGNORED_KEYS = [ATTR_ROOT]
 
-  
-  def self.from_hash(hash, opts = {}, &block)
+  def self.from_hash(hash, opts = {}, &_block)
     key_proc = \
       if opts[:camelize]
-        lambda { |k|
+        lambda do |k|
           # QB wants things like ListID, not ListId. Adding inflections then using camelize can accomplish
           # the same thing, but then the inflections will apply to everything the user does everywhere.
-          k.camelize.gsub(Qbxml::Types::ACRONYM_REGEXP) { "#{$1}#{$2.upcase}#{$3}" }
-        }
+          k.camelize.gsub(Qbxml::Types::ACRONYM_REGEXP) { "#{Regexp.last_match(1)}#{Regexp.last_match(2).upcase}#{Regexp.last_match(3)}" }
+        end
       elsif opts[:underscore]
-        lambda { |k| k.underscore } 
+        ->(k) { k.underscore }
       end
 
     deep_convert(hash, opts, &key_proc)
   end
 
   def to_xml(opts = {})
-    hash = self.class.to_xml(self, opts)
+    self.class.to_xml(self, opts)
   end
 
   def self.to_xml(hash, opts = {})
@@ -42,35 +41,31 @@ class Qbxml::Hash < ::Hash
       xml_to_hash(Nokogiri::XML(xml).root, {}, opts), opts)
   end
 
-private
-
   def self.hash_to_xml(hash, opts = {})
     opts = opts.dup
-    opts[:indent]          ||= 2
-    opts[:root]            ||= :hash
-    opts[:attributes]      ||= (hash.delete(ATTR_ROOT) || {})
-    opts[:builder]         ||= Builder::XmlMarkup.new(indent: opts[:indent])
-    opts[:skip_types]      = true unless opts.key?(:skip_types) 
+    opts[:indent] ||= 2
+    opts[:root] ||= :hash
+    opts[:attributes] ||= (hash.delete(ATTR_ROOT) || {})
+    opts[:builder] ||= Builder::XmlMarkup.new(indent: opts[:indent])
+    opts[:skip_types]      = true unless opts.key?(:skip_types)
     opts[:skip_instruct]   = false unless opts.key?(:skip_instruct)
     builder = opts[:builder]
-    
+
     unless opts.delete(:skip_instruct)
-      builder.instruct!(:xml, :encoding => "ISO-8859-1")
+      builder.instruct!(:xml, encoding: 'ISO-8859-1')
       builder.instruct!(opts[:schema], version: opts[:version])
     end
 
     builder.tag!(opts[:root], opts.delete(:attributes)) do
-      hash.each do |key, val| 
+      hash.each do |key, val|
         case val
         when Hash
-          self.hash_to_xml(val, opts.merge({root: key, skip_instruct: true}))
+          hash_to_xml(val, opts.merge(root: key, skip_instruct: true))
         when Array
-          val.map { |i|
-            if i.is_a?(String)
-              next builder.tag!(key, i, {})
-            end
-            next self.hash_to_xml(i, opts.merge({root: key, skip_instruct: true}))
-          }
+          val.map do |i|
+            next builder.tag!(key, i, {}) if i.is_a?(String)
+            next hash_to_xml(i, opts.merge(root: key, skip_instruct: true))
+          end
         else
           builder.tag!(key, val, {})
         end
@@ -79,21 +74,21 @@ private
       yield builder if block_given?
     end
   end
-  
+
   def self.xml_to_hash(node, hash = {}, opts = {})
-    node_hash = {CONTENT_ROOT => '', ATTR_ROOT => {}}
+    node_hash = { CONTENT_ROOT => '', ATTR_ROOT => {} }
     name = node.name
     schema = opts[:schema]
     opts[:typecast_cache] ||= {}
 
     # Insert node hash into parent hash correctly.
     case hash[name]
-      when Array
-        hash[name] << node_hash
-      when Hash, String
-        hash[name] = [hash[name], node_hash]
-      else
-        hash[name] = node_hash
+    when Array
+      hash[name] << node_hash
+    when Hash, String
+      hash[name] = [hash[name], node_hash]
+    else
+      hash[name] = node_hash
     end
 
     # Handle child elements
@@ -131,21 +126,18 @@ private
     hash
   end
 
-
-private
-
   def self.typecast(schema, xpath, value, typecast_cache)
-    type_path = xpath.gsub(/\[\d+\]/,'')
+    type_path = xpath.gsub(/\[\d+\]/, '')
     # This is fairly expensive. Cache it for better performance when parsing lots of records of the same type.
     type_proc = typecast_cache[type_path] ||= Qbxml::TYPE_MAP[schema.xpath(type_path).first.try(:text)]
-    raise "#{xpath} is not a valid type" unless type_proc
+    fail "#{xpath} is not a valid type" unless type_proc
     type_proc[value]
   end
 
-  def self.deep_convert(hash, opts = {}, &block)
-    hash.inject(self.new) do |h, (k,v)|
+  def self.deep_convert(hash, _opts = {}, &block)
+    hash.each_with_object(new) do |(k, v), h|
       k = k.to_s
-      ignored = IGNORED_KEYS.include?(k) 
+      ignored = IGNORED_KEYS.include?(k)
       if ignored
         h[k] = v
       else
@@ -161,5 +153,4 @@ private
       end; h
     end
   end
-
 end

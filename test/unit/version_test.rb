@@ -2,7 +2,6 @@ require 'minitest/autorun'
 require 'qbxml'
 
 class VersionTest < Minitest::Test
-
   def test_string_version
     Qbxml.new(:qb, '7.0')
   end
@@ -20,5 +19,4 @@ class VersionTest < Minitest::Test
   def test_int_version
     Qbxml.new(:qb, 7)
   end
-
 end
